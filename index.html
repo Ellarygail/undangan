@@ -306,7 +306,7 @@
                 <i data-lucide="clock" class="w-4 h-4 text-terracotta"></i>
               </div>
               <div>
-                <p id="info-time" class="font-serif text-xl font-semibold text-ink leading-snug">09.00 – 11.30 WIB</p>
+                <p id="info-time" class="font-serif text-xl font-semibold text-ink leading-snug">06.45 – 08.05 WIB</p>
                 <p class="text-xs text-stone mt-1">Harap hadir tepat waktu</p>
               </div>
             </div>
@@ -821,7 +821,7 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
 
   <script>
     (function () {
-      const STORAGE_KEY = 'essen_nemtas_12bc1_v1';
+      const STORAGE_KEY = 'essen_nemtas_12bc1_v2';
 
       const DEFAULT_STATE = {
         pin: '261126',
@@ -829,7 +829,7 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
         event: {
           title: 'Essen und Trinken',
           dateLabel: 'Kamis, 26 November 2026',
-          timeLabel: '09.00 – 11.30 WIB',
+          timeLabel: '06.45 – 08.05 WIB',
           className: 'Kelas XII BC 1',
           tableName: 'Meja ke-3',
           tableGerman: 'Tisch Nr. 3',
@@ -1011,7 +1011,7 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
         if (guest.role) params.set('role', guest.role);
         const ev = state.event;
         const def = DEFAULT_STATE.event;
-        if (ev.timeLabel && ev.timeLabel !== def.timeLabel) params.set('jam', ev.timeLabel);
+        if (ev.timeLabel) params.set('jam', ev.timeLabel);
         if (ev.dateLabel && ev.dateLabel !== def.dateLabel) params.set('tgl', ev.dateLabel);
         if (ev.room && ev.room !== def.room) params.set('ruang', ev.room);
         if (ev.className && ev.className !== def.className) params.set('kelas', ev.className);
@@ -1131,7 +1131,11 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
          ========================================================= */
       function startCountdown() {
         if (countdownInterval) clearInterval(countdownInterval);
-        const target = new Date('2026-11-26T09:00:00+07:00').getTime();
+        const ev = Object.assign({}, state.event, activePreviewGuest ? {} : getUrlEventOverrides());
+        const match = String(ev.timeLabel || '').match(/(\d{1,2})[.:](\d{2})/);
+        const hh = match ? match[1].padStart(2, '0') : '06';
+        const mm = match ? match[2].padStart(2, '0') : '45';
+        const target = new Date(`2026-11-26T${hh}:${mm}:00+07:00`).getTime();
 
         function tick() {
           const now = Date.now();
@@ -1215,7 +1219,7 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
 
       function downloadICS() {
         const ev = Object.assign({}, state.event, activePreviewGuest ? {} : getUrlEventOverrides());
-        const times = parseTimeToIcs(ev.timeLabel, '090000', '113000');
+        const times = parseTimeToIcs(ev.timeLabel, '064500', '080500');
         const icsContent = [
           'BEGIN:VCALENDAR',
           'VERSION:2.0',
@@ -1539,9 +1543,8 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
           }
         });
 
-        // Edit Event Form
-        document.getElementById('form-event-details').addEventListener('submit', (e) => {
-          e.preventDefault();
+        // Edit Event Form (live sync + explicit save)
+        function syncEventFromForm() {
           state.event.dateLabel = document.getElementById('edit-date').value.trim() || DEFAULT_STATE.event.dateLabel;
           state.event.timeLabel = document.getElementById('edit-time').value.trim() || DEFAULT_STATE.event.timeLabel;
           state.event.className = document.getElementById('edit-class').value.trim() || DEFAULT_STATE.event.className;
@@ -1551,6 +1554,15 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
           saveState();
           renderInvitation();
           renderAdminGuests();
+          startCountdown();
+        }
+        ['edit-date', 'edit-time', 'edit-class', 'edit-table', 'edit-room', 'edit-letter'].forEach((fieldId) => {
+          const el = document.getElementById(fieldId);
+          if (el) el.addEventListener('change', syncEventFromForm);
+        });
+        document.getElementById('form-event-details').addEventListener('submit', (e) => {
+          e.preventDefault();
+          syncEventFromForm();
           showToast('Detail acara & semua link undangan berhasil diperbarui');
         });
 
