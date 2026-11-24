@@ -722,7 +722,7 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
               <input
                 id="input-base-url"
                 type="url"
-                placeholder="https://essen-12bc1.vercel.app/"
+                placeholder="https://ellarygail.github.io/undangan/"
                 class="flex-1 bg-paper border border-ruleStrong px-3.5 py-2.5 text-sm font-mono text-ink placeholder:text-stone/60 focus:outline-none focus:border-terracotta min-h-[44px]"
               />
               <button type="submit" class="inline-flex items-center justify-center gap-2 bg-pine hover:bg-ink text-ivory px-5 py-2.5 text-sm font-medium transition-colors min-h-[44px]">
@@ -969,6 +969,26 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
         return null;
       }
 
+      function getUrlEventOverrides() {
+        const overrides = {};
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const jam = params.get('jam') || params.get('waktu');
+          const tgl = params.get('tgl') || params.get('tanggal');
+          const ruang = params.get('ruang') || params.get('tempat');
+          const kelas = params.get('kelas');
+          const meja = params.get('meja');
+          if (jam && jam.trim()) overrides.timeLabel = jam.trim();
+          if (tgl && tgl.trim()) overrides.dateLabel = tgl.trim();
+          if (ruang && ruang.trim()) overrides.room = ruang.trim();
+          if (kelas && kelas.trim()) overrides.className = kelas.trim();
+          if (meja && meja.trim()) overrides.tableName = meja.trim();
+        } catch (e) {
+          // ignore
+        }
+        return overrides;
+      }
+
       function getBaseInviteUrl() {
         if (state.baseUrl && state.baseUrl.trim()) {
           return state.baseUrl.trim().replace(/\?.*$/, '');
@@ -981,7 +1001,7 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
         } catch (e) {
           // ignore
         }
-        return 'https://undangan-essen-12bc1.vercel.app/';
+        return 'https://ellarygail.github.io/undangan/';
       }
 
       function buildGuestLink(guest) {
@@ -989,6 +1009,13 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
         const params = new URLSearchParams();
         params.set('to', guest.name);
         if (guest.role) params.set('role', guest.role);
+        const ev = state.event;
+        const def = DEFAULT_STATE.event;
+        if (ev.timeLabel && ev.timeLabel !== def.timeLabel) params.set('jam', ev.timeLabel);
+        if (ev.dateLabel && ev.dateLabel !== def.dateLabel) params.set('tgl', ev.dateLabel);
+        if (ev.room && ev.room !== def.room) params.set('ruang', ev.room);
+        if (ev.className && ev.className !== def.className) params.set('kelas', ev.className);
+        if (ev.tableName && ev.tableName !== def.tableName) params.set('meja', ev.tableName);
         return `${base}?${params.toString()}`;
       }
 
@@ -1014,7 +1041,8 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
          RENDER PUBLIC INVITATION
          ========================================================= */
       function renderInvitation() {
-        const ev = state.event;
+        const urlOverrides = activePreviewGuest ? {} : getUrlEventOverrides();
+        const ev = Object.assign({}, state.event, urlOverrides);
         const urlGuest = getUrlGuest();
         const guest = activePreviewGuest || urlGuest || { name: 'Bapak / Ibu Tamu Undangan', role: '', table: '' };
         const tableDisplay = guest.table || ev.tableName;
@@ -1171,15 +1199,30 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
       /* =========================================================
          ICS CALENDAR DOWNLOAD
          ========================================================= */
+      function parseTimeToIcs(timeStr, fallbackStart, fallbackEnd) {
+        const matches = String(timeStr || '').match(/(\d{1,2})[.:](\d{2})/g);
+        if (matches && matches.length >= 1) {
+          const fmt = (t) => {
+            const p = t.replace('.', ':').split(':');
+            return p[0].padStart(2, '0') + p[1].padStart(2, '0') + '00';
+          };
+          const start = fmt(matches[0]);
+          const end = matches.length >= 2 ? fmt(matches[1]) : fallbackEnd;
+          return { start, end };
+        }
+        return { start: fallbackStart, end: fallbackEnd };
+      }
+
       function downloadICS() {
-        const ev = state.event;
+        const ev = Object.assign({}, state.event, activePreviewGuest ? {} : getUrlEventOverrides());
+        const times = parseTimeToIcs(ev.timeLabel, '090000', '113000');
         const icsContent = [
           'BEGIN:VCALENDAR',
           'VERSION:2.0',
           'PRODID:-//SMKN6Tangsel//EssenUndTrinken//ID',
           'BEGIN:VEVENT',
-          'DTSTART;TZID=Asia/Jakarta:20261126T090000',
-          'DTEND;TZID=Asia/Jakarta:20261126T113000',
+          `DTSTART;TZID=Asia/Jakarta:20261126T${times.start}`,
+          `DTEND;TZID=Asia/Jakarta:20261126T${times.end}`, 
           `SUMMARY:${ev.title} (${ev.className} - ${ev.tableName})`,
           `LOCATION:${ev.school}, ${ev.address}`,
           `DESCRIPTION:Undangan kegiatan praktik Bahasa Jerman ${ev.title} oleh ${ev.className} (${ev.tableName}). Menu: Currywurst mit Pommes Frites & Tee.`,
@@ -1507,7 +1550,8 @@ Kehadiran Anda untuk mencicipi hidangan yang telah kami siapkan akan menjadi keb
           state.event.letter = document.getElementById('edit-letter').value.trim() || DEFAULT_STATE.event.letter;
           saveState();
           renderInvitation();
-          showToast('Detail acara berhasil disimpan');
+          renderAdminGuests();
+          showToast('Detail acara & semua link undangan berhasil diperbarui');
         });
 
         // Add Menu Item
